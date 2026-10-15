@@ -51,22 +51,22 @@ public class SessionManager : MonoBehaviour
     ulong clientId,
     PlayerRole role,
     int selectedDrone = -1)
+{
+    PlayerData playerData = new PlayerData
     {
-        PlayerData playerData = new PlayerData
-        {
-            ClientId = clientId,
-            Role = role,
-            DroneSelected = selectedDrone
-        };
+        ClientId = clientId,
+        Role = role,
+        DroneSelected = selectedDrone
+    };
 
-        connectedPlayers.Add(clientId, playerData);
+    connectedPlayers[clientId] = playerData;
 
-        Debug.Log(
-            $"Player Registered - Client {clientId} " +
-            $"({role}) - Drone: {selectedDrone}");
+    Debug.Log(
+        $"Player Registered - Client {clientId} " +
+        $"({role}) - Drone: {selectedDrone}");
 
-        OnPlayersChanged?.Invoke();
-    }
+    OnPlayersChanged?.Invoke();
+}
 
     public void RemovePlayer(ulong clientId)
     {

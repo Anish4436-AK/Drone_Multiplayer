@@ -23,16 +23,25 @@ public class DroneMotor: NetworkBehaviour
     [SerializeField] private float pitchForce = 8f;
     [SerializeField] private float rollForce = 20f;
 
-    [Header("Stabilization")]
-    [SerializeField] private float rotationStabilizeSpeed = 5f;
-    //[SerializeField] private float velocityStabilizeSpeed = 2f;
-    //[SerializeField] private float hoverForceMultiplier = 1f;
+    [Header("Rotation Stabilization")]
+    [SerializeField] private float stabilizationStrength = 8f;
+    [SerializeField] private float stabilizationDamping = 3f;
+    [SerializeField] private float maxStabilizationTorque = 10f;
 
     [Header("Clamp")]
     [SerializeField] private float maxRoll = 0f;
     [SerializeField] private float maxPitch = 0f;
 
-   
+    [Header("Pitch & Roll Limits")]
+    [SerializeField] private float maxPitchAngle = 25f;
+    [SerializeField] private float maxRollAngle = 25f;
+    [SerializeField] private float limitStrength = 12f;
+    [SerializeField] private float limitDamping = 4f;
+
+    [Header("Drone Motor Sound")]
+    [SerializeField] private AudioSource motorAudio;
+
+
     [Header("bool")]
     //public bool isArmed = false;
     public NetworkVariable<bool> isArmed = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
@@ -56,6 +65,19 @@ public class DroneMotor: NetworkBehaviour
             DroneArm();
         }
         //Debug.Log($"canArm = {canArm}");
+
+        if (Input.GetKeyDown(KeyCode.T))
+        {
+            if (motorAudio != null)
+            {
+                motorAudio.Play();
+                Debug.Log("Testing drone sound: " + motorAudio.clip.name);
+            }
+            else
+            {
+                Debug.LogError("Motor AudioSource is not assigned!");
+            }
+        }
     }
   
     private void FixedUpdate()
@@ -64,8 +86,9 @@ public class DroneMotor: NetworkBehaviour
 
         if (isArmed.Value)
         {
-            ClampRotation();    
+         //   ClampRotation();    
             Dynamics();
+            ClampPitchAndRoll();
         }
 
         //ClampRotation();
@@ -81,12 +104,14 @@ public class DroneMotor: NetworkBehaviour
         if (canArm && Input.GetKeyDown(KeyCode.Q))
         {
             isArmed.Value = true;
+            UpdateMotorSound(true);
             //Debug.Log("Drone Armed");
         }
 
         if (canArm&&Input.GetKeyDown(KeyCode.E))
         {
             isArmed.Value = false;
+            UpdateMotorSound(false);
             //Debug.Log("Drone Disarmed");
         }
     }
@@ -100,7 +125,47 @@ public class DroneMotor: NetworkBehaviour
             Wing2.transform.Rotate(0, Propeller_Speed * Time.deltaTime, 0);
             Wing3.transform.Rotate(0, Propeller_Speed * Time.deltaTime, 0);
             Wing4.transform.Rotate(0, Propeller_Speed * Time.deltaTime, 0);
+            
         }
+    }
+
+    private void UpdateMotorSound(bool armed)
+    {
+        if (motorAudio == null)
+            return;
+
+        if (armed)
+        {
+            if (!motorAudio.isPlaying)
+                motorAudio.Play();
+
+        }
+        else
+        {
+            if (motorAudio.isPlaying)
+                motorAudio.Stop();
+        }
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        isArmed.OnValueChanged += OnArmedChanged;
+
+        // Handle the initial state for late-joining clients.
+        UpdateMotorSound(isArmed.Value);
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        isArmed.OnValueChanged -= OnArmedChanged;
+
+        if (motorAudio != null)
+            motorAudio.Stop();
+    }
+
+    private void OnArmedChanged(bool previousValue, bool newValue)
+    {
+        UpdateMotorSound(newValue);
     }
 
     /*  void Dynamics()
@@ -180,32 +245,38 @@ public class DroneMotor: NetworkBehaviour
 
     void Dynamics()
     {
-        
-        // THRUST / HOVER
-         if (Input.GetKey(KeyCode.W))
+        // =====================================================
+        // ALTITUDE
+        // =====================================================
+
+        float verticalInput = 0f;
+
+        if (Input.GetKey(KeyCode.W))
+            verticalInput = 1f;
+
+        if (Input.GetKey(KeyCode.S))
+            verticalInput = -1f;
+
+        // Always counter gravity.
+        // This prevents the drone from falling when tilted.
+        rb.AddForce(
+            Vector3.up * -Physics.gravity.y,
+            ForceMode.Acceleration
+        );
+
+        // Additional vertical movement
+        if (verticalInput != 0f)
         {
             rb.AddForce(
-                transform.up * thrustForce,
-                ForceMode.Acceleration
-            );
-        }
-        else if (Input.GetKey(KeyCode.S))
-        {
-            rb.AddForce(
-                -transform.up * thrustForce,
-                ForceMode.Acceleration
-            );
-        }
-        else
-        {
-            // Hover against gravity
-            rb.AddForce(
-                -Physics.gravity,
+                Vector3.up * verticalInput * thrustForce,
                 ForceMode.Acceleration
             );
         }
 
+
+        // =====================================================
         // YAW
+        // =====================================================
 
         if (Input.GetKey(KeyCode.A))
         {
@@ -214,7 +285,8 @@ public class DroneMotor: NetworkBehaviour
                 ForceMode.Acceleration
             );
         }
-        else if (Input.GetKey(KeyCode.D))
+
+        if (Input.GetKey(KeyCode.D))
         {
             rb.AddRelativeTorque(
                 Vector3.up * yawForce,
@@ -222,94 +294,113 @@ public class DroneMotor: NetworkBehaviour
             );
         }
 
+
+        // =====================================================
         // PITCH
+        // =====================================================
 
         if (Input.GetKey(KeyCode.I))
-        {
-            rb.AddRelativeTorque(
-                Vector3.right * pitchForce,
-                ForceMode.Acceleration
-            );
-        }
-        else if (Input.GetKey(KeyCode.K))
         {
             rb.AddRelativeTorque(
                 Vector3.left * pitchForce,
                 ForceMode.Acceleration
             );
         }
-        else
-        {
-            StabilizePitch();
-        }
 
-        // ROLL
-
-        if (Input.GetKey(KeyCode.J))
+        if (Input.GetKey(KeyCode.K))
         {
             rb.AddRelativeTorque(
-                Vector3.forward * rollForce,
+                Vector3.right * pitchForce,
                 ForceMode.Acceleration
             );
         }
-        else if (Input.GetKey(KeyCode.L))
+
+
+        // =====================================================
+        // ROLL
+        // =====================================================
+
+        if (Input.GetKey(KeyCode.J))
         {
             rb.AddRelativeTorque(
                 Vector3.back * rollForce,
                 ForceMode.Acceleration
             );
         }
-        else
+
+        if (Input.GetKey(KeyCode.L))
         {
-            StabilizeRoll();
+            rb.AddRelativeTorque(
+                Vector3.forward * rollForce,
+                ForceMode.Acceleration
+            );
         }
 
-        // MOVEMENT FROM TILT
 
-        Vector3 forwardMovement =
-            transform.forward * transform.forward.y * -thrustForce;
+        // =====================================================
+        // HORIZONTAL MOVEMENT FROM TILT
+        // =====================================================
 
-        Vector3 sideMovement =
-            transform.right * transform.right.y * -thrustForce;
+        Vector3 horizontalTilt =
+            new Vector3(
+                transform.up.x,
+                0f,
+                transform.up.z
+            );
+
+        Vector3 horizontalMovement =
+            -horizontalTilt * thrustForce;
 
         rb.AddForce(
-            forwardMovement + sideMovement,
+            horizontalMovement,
             ForceMode.Acceleration
         );
+
+
+        // =====================================================
+        // ROTATION STABILIZATION
+        // =====================================================
+
+        StabilizeDrone();
     }
 
-    void StabilizePitch()
+    void StabilizeDrone()
     {
-        Vector3 rotation = transform.localEulerAngles;
+        // Direction needed to bring drone's UP
+        // back toward world UP.
+        Vector3 tiltError =
+            Vector3.Cross(
+                transform.up,
+                Vector3.up
+            );
 
-        float pitch = rotation.x;
+        // Angular velocity in local drone space
+        Vector3 localAngularVelocity =
+            transform.InverseTransformDirection(
+                rb.angularVelocity
+            );
 
-        if (pitch > 180f)
-            pitch -= 360f;
+        // Do not stabilize yaw.
+        localAngularVelocity.y = 0f;
 
-        float correction =
-            -pitch * rotationStabilizeSpeed;
+        Vector3 worldAngularVelocity =
+            transform.TransformDirection(
+                localAngularVelocity
+            );
 
-        rb.AddRelativeTorque(
-            Vector3.right * correction,
-            ForceMode.Acceleration
-        );
-    }
+        // PD stabilization
+        Vector3 stabilizationTorque =
+            (tiltError * stabilizationStrength)
+            - (worldAngularVelocity * stabilizationDamping);
 
-    void StabilizeRoll()
-    {
-        Vector3 rotation = transform.localEulerAngles;
+        stabilizationTorque =
+            Vector3.ClampMagnitude(
+                stabilizationTorque,
+                maxStabilizationTorque
+            );
 
-        float roll = rotation.z;
-
-        if (roll > 180f)
-            roll -= 360f;
-
-        float correction =
-            -roll * rotationStabilizeSpeed;
-
-        rb.AddRelativeTorque(
-            Vector3.forward * correction,
+        rb.AddTorque(
+            stabilizationTorque,
             ForceMode.Acceleration
         );
     }
@@ -388,6 +479,51 @@ public class DroneMotor: NetworkBehaviour
         }
     }*/
 
+    private void ClampPitchAndRoll()
+    {
+        // Get current rotation relative to the drone's starting orientation.
+        Vector3 localAngles = transform.localEulerAngles;
+
+        float pitch = localAngles.x;
+        float roll = localAngles.z;
+
+        // Convert Unity's 0–360 angles into -180 to 180.
+        if (pitch > 180f) pitch -= 360f;
+        if (roll > 180f) roll -= 360f;
+
+        Vector3 localAngularVelocity =
+            transform.InverseTransformDirection(rb.angularVelocity);
+
+        float pitchTorque = 0f;
+        float rollTorque = 0f;
+
+        // Pitch limit
+        if (Mathf.Abs(pitch) > maxPitchAngle)
+        {
+            float excess = Mathf.Abs(pitch) - maxPitchAngle;
+
+            pitchTorque = -Mathf.Sign(pitch) *
+                          (excess * limitStrength);
+
+            pitchTorque -= localAngularVelocity.x * limitDamping;
+        }
+
+        // Roll limit
+        if (Mathf.Abs(roll) > maxRollAngle)
+        {
+            float excess = Mathf.Abs(roll) - maxRollAngle;
+
+            rollTorque = -Mathf.Sign(roll) *
+                         (excess * limitStrength);
+
+            rollTorque -= localAngularVelocity.z * limitDamping;
+        }
+
+        rb.AddRelativeTorque(
+            new Vector3(pitchTorque, 0f, rollTorque),
+            ForceMode.Acceleration
+        );
+    }
     void ResetDroneRotation()
     {
         PlayerDrone.transform.rotation = Quaternion.Euler(0, 0, 0);  

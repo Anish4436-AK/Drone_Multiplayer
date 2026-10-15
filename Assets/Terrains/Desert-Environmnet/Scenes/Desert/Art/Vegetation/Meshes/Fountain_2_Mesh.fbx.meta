@@ -1,9 +1,19 @@
 fileFormatVersion: 2
-guid: 23227ada4099d15489ab43c8bed1d455
+guid: 79958ab6deddafc4c8e1fc04a6bab7ed
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: FountainAtlas_Mat.001
+    second: {fileID: 2100000, guid: 87948eb0c51317d4d9723fd73a09d5d3, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Stem_1_Mat
+    second: {fileID: 2100000, guid: 6e66d4b4c29ef8c498199996b2ecdd8a, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
@@ -34,7 +44,10 @@ ModelImporter:
     clipAnimations: []
     isReadable: 0
   meshes:
-    lODScreenPercentages: []
+    lODScreenPercentages:
+    - 0.25
+    - 0.125
+    - 0.01
     globalScale: 1
     meshCompression: 0
     addColliders: 0

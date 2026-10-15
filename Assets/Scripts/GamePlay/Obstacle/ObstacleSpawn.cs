@@ -11,13 +11,13 @@ public class ObstacleSpawn : MonoBehaviour
     public ObstacleManagerCounter OMC;
 
     [Header ("ObstacleManagment")]
-    [SerializeField] public float[] lanes = { -10f, -15f, 0, 10f, 15f};
+    [SerializeField] public float[] lanes = { -10f, -20f, 0, 10f, 20f};
     [SerializeField] public float[] height = { 0, 3f, 6f, 10f};
     //[SerializeField] public int numberOfObstaclesAtS1 = 2;
     //[SerializeField] public int numberOfObstaclesAtS2 = 5;
     //[SerializeField] public int numberOfObstaclesAtS3 = 5;
 
-    [SerializeField] public int numberOfObstaclesAt_Difficult = 5;
+    [SerializeField] public int numberOfObstaclesAt_Difficult = 10;
 
     [SerializeField] float ObstacleSpawnDistance = 30f;
 

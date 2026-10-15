@@ -72,7 +72,7 @@ public class LobbyManager : MonoBehaviour
         }
 
         connectedPlayersText.text = builder.ToString();
-        playerCountText.text = $"Players : {trainees.Count}";
+        playerCountText.text = $"{trainees.Count}";
     }
     private void OnEnable()
     {
